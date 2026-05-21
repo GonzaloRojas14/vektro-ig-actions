@@ -1,0 +1,38 @@
+name: Post Instagram Story
+
+on:
+  schedule:
+    # Runs every hour at minute 0 — poster.py decides if there's something to post.
+    # Adjust or add cron entries to match exactly the times in content.json.
+    - cron: "0 9 * * *"   # 09:00 UTC
+    - cron: "0 13 * * *"  # 13:00 UTC
+    - cron: "0 18 * * *"  # 18:00 UTC
+    - cron: "0 21 * * *"  # 21:00 UTC
+
+  # Allow manual runs from the Actions tab for testing
+  workflow_dispatch:
+
+jobs:
+  post-story:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Post Instagram Story
+        env:
+          ACCESS_TOKEN: ${{ secrets.ACCESS_TOKEN }}
+          USER_ID: ${{ secrets.USER_ID }}
+          IMGBB_API_KEY: ${{ secrets.IMGBB_API_KEY }}
+        run: python poster.py
