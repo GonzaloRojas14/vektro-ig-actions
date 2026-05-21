@@ -9,7 +9,7 @@ on:
     - cron: "0 18 * * *"  # 18:00 UTC
     - cron: "0 21 * * *"  # 21:00 UTC
 
-  # Allow manual runs from the Actions tab for testing
+  # Allow manual runs from the Actions tab — always posts the first story
   workflow_dispatch:
 
 jobs:
@@ -35,4 +35,9 @@ jobs:
           ACCESS_TOKEN: ${{ secrets.ACCESS_TOKEN }}
           USER_ID: ${{ secrets.USER_ID }}
           IMGBB_API_KEY: ${{ secrets.IMGBB_API_KEY }}
-        run: python poster.py
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            python poster.py --force
+          else
+            python poster.py
+          fi

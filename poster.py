@@ -299,6 +299,8 @@ def publish_story(container_id: str, user_id: str, access_token: str) -> str:
 # ── Main ──────────────────────────────────────────────────────────────────────
 
 def main() -> None:
+    force = "--force" in sys.argv
+
     access_token = os.environ.get("ACCESS_TOKEN", "").strip()
     user_id = os.environ.get("USER_ID", "").strip()
     imgbb_api_key = os.environ.get("IMGBB_API_KEY", "").strip()
@@ -317,10 +319,14 @@ def main() -> None:
     now = datetime.now(timezone.utc)
     log.info("Current UTC time: %s", now.strftime("%Y-%m-%d %H:%M"))
 
-    story = find_story_for_now(stories, now)
-    if story is None:
-        log.info("No story scheduled for hour %s UTC — nothing to post.", now.strftime("%H:xx"))
-        return
+    if force:
+        story = stories[0]
+        log.info("--force mode: posting first story in content.json (time=%s)", story.get("time"))
+    else:
+        story = find_story_for_now(stories, now)
+        if story is None:
+            log.info("No story scheduled for hour %s UTC — nothing to post.", now.strftime("%H:xx"))
+            return
 
     log.info("Found scheduled story: time=%s text=%r", story.get("time"), story.get("text", "")[:60])
 
