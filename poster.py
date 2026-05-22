@@ -1,22 +1,27 @@
 """
-Instagram Stories automation poster.
-Reads stories/content.json, finds the story scheduled for the current hour,
-generates a 1080x1920 image with Pillow, uploads to ImgBB, and publishes
-via the Instagram Graph API.
+Vektro IT — Instagram Stories poster.
+
+Reads stories/content.json, finds the entry scheduled for the current
+day + hour (UTC), generates the image via the generator package, uploads
+to ImgBB, and publishes as an Instagram Story via the Graph API.
+
+Usage:
+  python poster.py           # normal scheduled run
+  python poster.py --force   # post the first entry regardless of schedule
 """
 
+import base64
 import json
+import logging
 import os
 import sys
 import time
-import base64
-import textwrap
-import logging
 from datetime import datetime, timezone
 from pathlib import Path
 
 import requests
-from PIL import Image, ImageDraw, ImageFont
+
+from generator import render as generator_render
 
 logging.basicConfig(
     level=logging.INFO,
@@ -25,275 +30,139 @@ logging.basicConfig(
 )
 log = logging.getLogger(__name__)
 
-CANVAS_W, CANVAS_H = 1080, 1920
 GRAPH_API = "https://graph.facebook.com/v19.0"
+CONTENT_PATH = "stories/content.json"
+
+_DAYS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
+
 
 # ── Config ────────────────────────────────────────────────────────────────────
 
-def load_config(path: str = "stories/content.json") -> list[dict]:
-    with open(path, "r", encoding="utf-8") as f:
+def load_content() -> list[dict]:
+    with open(CONTENT_PATH, "r", encoding="utf-8") as f:
         data = json.load(f)
     if not isinstance(data, list):
         raise ValueError("content.json must be a JSON array")
     return data
 
 
-def find_story_for_now(stories: list[dict], now: datetime) -> dict | None:
-    """Return the first story whose HH:MM hour matches the current UTC hour."""
-    current_hour = now.strftime("%H")
+def find_story(stories: list[dict], now: datetime) -> dict | None:
+    """Match by current UTC weekday name and hour (±30 min window)."""
+    current_day  = _DAYS[now.weekday()]
+    current_hour = now.hour
+    current_min  = now.minute
+
     for story in stories:
-        scheduled = story.get("time", "")
-        if len(scheduled) >= 2 and scheduled[:2] == current_hour:
+        day = story.get("day", "").lower()
+        if day != current_day:
+            continue
+        t = story.get("time", "00:00")
+        try:
+            sh, sm = int(t[:2]), int(t[3:5])
+        except (ValueError, IndexError):
+            log.warning("Invalid time format '%s' in content.json — skipping", t)
+            continue
+        # How many minutes from now to the scheduled time
+        delta = abs((current_hour * 60 + current_min) - (sh * 60 + sm))
+        if delta <= 30:
             return story
+
     return None
 
 
-# ── Image generation ──────────────────────────────────────────────────────────
-
-def hex_to_rgb(hex_color: str) -> tuple[int, int, int]:
-    hex_color = hex_color.lstrip("#")
-    if len(hex_color) != 6:
-        raise ValueError(f"Invalid hex color: {hex_color}")
-    r, g, b = int(hex_color[0:2], 16), int(hex_color[2:4], 16), int(hex_color[4:6], 16)
-    return r, g, b
-
-
-def luminance(r: int, g: int, b: int) -> float:
-    return 0.299 * r + 0.587 * g + 0.114 * b
-
-
-def _load_font(size: int) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
-    """Try to load a clean sans-serif font; fall back to PIL default."""
-    candidates = [
-        "/System/Library/Fonts/Helvetica.ttc",
-        "/System/Library/Fonts/SFNSDisplay.ttf",
-        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
-        "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
-        "/usr/share/fonts/truetype/freefont/FreeSansBold.ttf",
-        "arial.ttf",
-        "Arial.ttf",
-    ]
-    for path in candidates:
-        try:
-            return ImageFont.truetype(path, size)
-        except (IOError, OSError):
-            continue
-    log.warning("No TrueType font found, using PIL built-in (text quality reduced)")
-    return ImageFont.load_default()
-
-
-def draw_wrapped_text(
-    draw: ImageDraw.ImageDraw,
-    text: str,
-    font: ImageFont.FreeTypeFont | ImageFont.ImageFont,
-    fill: tuple[int, int, int],
-    canvas_w: int,
-    canvas_h: int,
-    padding: int = 80,
-) -> None:
-    """Draw text centered on the canvas with automatic word-wrap."""
-    max_width = canvas_w - padding * 2
-    # Wrap text to fit within max_width
-    avg_char_w = font.getbbox("A")[2] if hasattr(font, "getbbox") else 10
-    chars_per_line = max(1, max_width // max(avg_char_w, 1))
-    lines = []
-    for paragraph in text.split("\n"):
-        wrapped = textwrap.wrap(paragraph, width=chars_per_line) or [""]
-        lines.extend(wrapped)
-
-    # Measure total block height
-    line_height = (
-        font.getbbox("Ay")[3] - font.getbbox("Ay")[1] + 12
-        if hasattr(font, "getbbox")
-        else 20
-    )
-    total_h = line_height * len(lines)
-    y = (canvas_h - total_h) // 2
-
-    for line in lines:
-        if hasattr(font, "getbbox"):
-            bbox = font.getbbox(line)
-            line_w = bbox[2] - bbox[0]
-        else:
-            line_w = len(line) * 8
-        x = (canvas_w - line_w) // 2
-        # Subtle drop shadow for legibility
-        draw.text((x + 2, y + 2), line, font=font, fill=(0, 0, 0, 80))
-        draw.text((x, y), line, font=font, fill=fill)
-        y += line_height
-
-
-def generate_image_solid(story: dict) -> Path:
-    """Solid color background with centered text."""
-    bg_hex = story.get("background_color", "#1a1a2e")
-    text = story.get("text", "")
-    rgb = hex_to_rgb(bg_hex)
-
-    img = Image.new("RGB", (CANVAS_W, CANVAS_H), color=rgb)
-    draw = ImageDraw.Draw(img, "RGBA")
-
-    if text:
-        font = _load_font(72)
-        # Pick text color based on background luminance
-        text_color = (255, 255, 255) if luminance(*rgb) < 128 else (20, 20, 20)
-        draw_wrapped_text(draw, text, font, text_color, CANVAS_W, CANVAS_H)
-
-    out_path = Path("/tmp/ig_story_output.jpg")
-    img.save(out_path, "JPEG", quality=95)
-    log.info("Generated solid-color image → %s", out_path)
-    return out_path
-
-
-def generate_image_with_overlay(story: dict) -> Path:
-    """Image file as background with a semi-transparent text overlay."""
-    image_file = story["image_file"]
-    text = story.get("text", "")
-
-    img = Image.open(image_file).convert("RGB")
-    img = img.resize((CANVAS_W, CANVAS_H), Image.LANCZOS)
-
-    draw = ImageDraw.Draw(img, "RGBA")
-
-    if text:
-        # Dark gradient-like overlay across the center third for legibility
-        overlay = Image.new("RGBA", (CANVAS_W, CANVAS_H), (0, 0, 0, 0))
-        ov_draw = ImageDraw.Draw(overlay)
-        band_top = CANVAS_H // 3
-        band_bot = CANVAS_H * 2 // 3
-        ov_draw.rectangle([0, band_top, CANVAS_W, band_bot], fill=(0, 0, 0, 140))
-        img = Image.alpha_composite(img.convert("RGBA"), overlay).convert("RGB")
-
-        draw = ImageDraw.Draw(img)
-        font = _load_font(72)
-        draw_wrapped_text(draw, text, font, (255, 255, 255), CANVAS_W, CANVAS_H)
-
-    out_path = Path("/tmp/ig_story_output.jpg")
-    img.save(out_path, "JPEG", quality=95)
-    log.info("Generated image-overlay story → %s", out_path)
-    return out_path
-
-
-def generate_image(story: dict) -> Path:
-    if story.get("image_file"):
-        return generate_image_with_overlay(story)
-    return generate_image_solid(story)
-
-
-# ── ImgBB upload ──────────────────────────────────────────────────────────────
+# ── ImgBB ─────────────────────────────────────────────────────────────────────
 
 def upload_to_imgbb(image_path: Path, api_key: str) -> str:
-    """Upload image to ImgBB and return the public URL."""
     log.info("Uploading image to ImgBB…")
     with open(image_path, "rb") as f:
-        encoded = base64.b64encode(f.read()).decode("utf-8")
+        encoded = base64.b64encode(f.read()).decode()
 
     resp = requests.post(
         "https://api.imgbb.com/1/upload",
         data={"key": api_key, "image": encoded},
         timeout=30,
     )
-
     if not resp.ok:
         raise RuntimeError(f"ImgBB upload failed [{resp.status_code}]: {resp.text}")
 
-    data = resp.json()
-    if not data.get("success"):
-        raise RuntimeError(f"ImgBB returned failure: {data}")
+    body = resp.json()
+    if not body.get("success"):
+        raise RuntimeError(f"ImgBB returned failure: {body}")
 
-    url = data["data"]["url"]
-    log.info("Image uploaded: %s", url)
+    url = body["data"]["url"]
+    log.info("Uploaded: %s", url)
     return url
 
 
 # ── Instagram Graph API ───────────────────────────────────────────────────────
 
-def _check_token_error(resp: requests.Response) -> None:
-    """Raise a clear error if the response indicates a token problem."""
+def _guard_token_error(resp: requests.Response) -> None:
     if resp.status_code in (400, 401, 403):
         try:
             err = resp.json().get("error", {})
         except Exception:
             err = {}
         code = err.get("code", 0)
-        msg = err.get("message", "")
+        msg  = err.get("message", "")
         if code in (190, 102) or "token" in msg.lower() or "oauth" in msg.lower():
             log.error(
-                "Instagram access token is invalid or expired. "
-                "Regenerate the token at developers.facebook.com and update the "
-                "ACCESS_TOKEN repository secret."
+                "Instagram access token is INVALID or EXPIRED.\n"
+                "  → Regenerate it at https://developers.facebook.com/tools/explorer/\n"
+                "  → Then update the ACCESS_TOKEN secret in your GitHub repository."
             )
             sys.exit(1)
 
 
-def create_media_container(image_url: str, user_id: str, access_token: str) -> str:
-    """Create a Stories media container and return the container ID."""
+def create_container(image_url: str, user_id: str, token: str) -> str:
     log.info("Creating Instagram media container…")
     resp = requests.post(
         f"{GRAPH_API}/{user_id}/media",
-        params={
-            "image_url": image_url,
-            "media_type": "STORIES",
-            "access_token": access_token,
-        },
+        params={"image_url": image_url, "media_type": "STORIES", "access_token": token},
         timeout=30,
     )
-    _check_token_error(resp)
-
+    _guard_token_error(resp)
     if not resp.ok:
-        raise RuntimeError(
-            f"Failed to create media container [{resp.status_code}]: {resp.text}"
-        )
-
-    container_id = resp.json().get("id")
-    if not container_id:
+        raise RuntimeError(f"Create container failed [{resp.status_code}]: {resp.text}")
+    cid = resp.json().get("id")
+    if not cid:
         raise RuntimeError(f"No container ID in response: {resp.text}")
+    log.info("Container ID: %s", cid)
+    return cid
 
-    log.info("Media container created: %s", container_id)
-    return container_id
 
-
-def wait_for_container_ready(
-    container_id: str, access_token: str, retries: int = 10, delay: int = 5
-) -> None:
-    """Poll until the media container status is FINISHED."""
+def wait_ready(cid: str, token: str, retries: int = 12, delay: int = 5) -> None:
     log.info("Waiting for container to be ready…")
     for attempt in range(1, retries + 1):
         resp = requests.get(
-            f"{GRAPH_API}/{container_id}",
-            params={"fields": "status_code", "access_token": access_token},
+            f"{GRAPH_API}/{cid}",
+            params={"fields": "status_code", "access_token": token},
             timeout=15,
         )
-        _check_token_error(resp)
+        _guard_token_error(resp)
         if resp.ok:
             status = resp.json().get("status_code", "")
-            log.info("Container status [%d/%d]: %s", attempt, retries, status)
+            log.info("[%d/%d] status: %s", attempt, retries, status)
             if status == "FINISHED":
                 return
             if status == "ERROR":
-                raise RuntimeError("Media container processing failed with ERROR status")
+                raise RuntimeError("Media container processing returned ERROR")
         time.sleep(delay)
-    raise RuntimeError("Media container did not reach FINISHED state in time")
+    raise RuntimeError("Container did not reach FINISHED in time")
 
 
-def publish_story(container_id: str, user_id: str, access_token: str) -> str:
-    """Publish the media container as a Story."""
+def publish(cid: str, user_id: str, token: str) -> str:
     log.info("Publishing story…")
     resp = requests.post(
         f"{GRAPH_API}/{user_id}/media_publish",
-        params={
-            "creation_id": container_id,
-            "access_token": access_token,
-        },
+        params={"creation_id": cid, "access_token": token},
         timeout=30,
     )
-    _check_token_error(resp)
-
+    _guard_token_error(resp)
     if not resp.ok:
-        raise RuntimeError(f"Failed to publish story [{resp.status_code}]: {resp.text}")
-
-    media_id = resp.json().get("id")
-    log.info("Story published successfully! Media ID: %s", media_id)
-    return media_id
+        raise RuntimeError(f"Publish failed [{resp.status_code}]: {resp.text}")
+    mid = resp.json().get("id")
+    log.info("Published! Media ID: %s", mid)
+    return mid
 
 
 # ── Main ──────────────────────────────────────────────────────────────────────
@@ -301,40 +170,41 @@ def publish_story(container_id: str, user_id: str, access_token: str) -> str:
 def main() -> None:
     force = "--force" in sys.argv
 
-    access_token = os.environ.get("ACCESS_TOKEN", "").strip()
-    user_id = os.environ.get("USER_ID", "").strip()
-    imgbb_api_key = os.environ.get("IMGBB_API_KEY", "").strip()
+    token    = os.environ.get("ACCESS_TOKEN",  "").strip()
+    user_id  = os.environ.get("USER_ID",       "").strip()
+    imgbb_key = os.environ.get("IMGBB_API_KEY", "").strip()
 
     missing = [k for k, v in {
-        "ACCESS_TOKEN": access_token,
-        "USER_ID": user_id,
-        "IMGBB_API_KEY": imgbb_api_key,
+        "ACCESS_TOKEN":  token,
+        "USER_ID":       user_id,
+        "IMGBB_API_KEY": imgbb_key,
     }.items() if not v]
-
     if missing:
         log.error("Missing required environment variables: %s", ", ".join(missing))
         sys.exit(1)
 
-    stories = load_config()
+    stories = load_content()
     now = datetime.now(timezone.utc)
-    log.info("Current UTC time: %s", now.strftime("%Y-%m-%d %H:%M"))
+    log.info("UTC time: %s (%s)", now.strftime("%Y-%m-%d %H:%M"), _DAYS[now.weekday()])
 
     if force:
         story = stories[0]
-        log.info("--force mode: posting first story in content.json (time=%s)", story.get("time"))
+        log.info("--force: posting first entry (day=%s, time=%s, type=%s)",
+                 story.get("day"), story.get("time"), story.get("type"))
     else:
-        story = find_story_for_now(stories, now)
+        story = find_story(stories, now)
         if story is None:
-            log.info("No story scheduled for hour %s UTC — nothing to post.", now.strftime("%H:xx"))
+            log.info("No story scheduled for %s %s UTC — nothing to post.",
+                     _DAYS[now.weekday()], now.strftime("%H:%M"))
             return
+        log.info("Matched story: day=%s time=%s type=%s",
+                 story.get("day"), story.get("time"), story.get("type"))
 
-    log.info("Found scheduled story: time=%s text=%r", story.get("time"), story.get("text", "")[:60])
-
-    image_path = generate_image(story)
-    image_url = upload_to_imgbb(image_path, imgbb_api_key)
-    container_id = create_media_container(image_url, user_id, access_token)
-    wait_for_container_ready(container_id, access_token)
-    publish_story(container_id, user_id, access_token)
+    image_path  = generator_render.render(story)
+    image_url   = upload_to_imgbb(image_path, imgbb_key)
+    cid         = create_container(image_url, user_id, token)
+    wait_ready(cid, token)
+    publish(cid, user_id, token)
     log.info("Done.")
 
 

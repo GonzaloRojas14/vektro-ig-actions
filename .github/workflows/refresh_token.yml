@@ -1,0 +1,44 @@
+name: Refresh Instagram Access Token
+
+on:
+  schedule:
+    # Every 45 days — well before the 60-day expiry
+    - cron: "0 8 */45 * *"
+
+  # Manual trigger for immediate refresh
+  workflow_dispatch:
+
+jobs:
+  refresh-token:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    permissions:
+      # gh CLI needs contents:read at minimum; secrets are updated via GH_PAT
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Extend token and update secret
+        env:
+          ACCESS_TOKEN:    ${{ secrets.ACCESS_TOKEN }}
+          META_APP_ID:     ${{ secrets.META_APP_ID }}
+          META_APP_SECRET: ${{ secrets.META_APP_SECRET }}
+          # GH_PAT must have repo → secrets write permission
+          GH_TOKEN:        ${{ secrets.GH_PAT }}
+        run: |
+          set -euo pipefail
+          # token_manager.py prints ONLY the new token to stdout
+          python token_manager.py | gh secret set ACCESS_TOKEN --repo "${{ github.repository }}"
+          echo "ACCESS_TOKEN secret updated successfully."

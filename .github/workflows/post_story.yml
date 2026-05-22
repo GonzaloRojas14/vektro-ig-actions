@@ -2,14 +2,14 @@ name: Post Instagram Story
 
 on:
   schedule:
-    # Runs every hour at minute 0 — poster.py decides if there's something to post.
-    # Adjust or add cron entries to match exactly the times in content.json.
-    - cron: "0 9 * * *"   # 09:00 UTC
-    - cron: "0 13 * * *"  # 13:00 UTC
-    - cron: "0 18 * * *"  # 18:00 UTC
-    - cron: "0 21 * * *"  # 21:00 UTC
+    - cron: "0 9  * * 1"   # Monday    09:00 UTC — tech_tip
+    - cron: "0 12 * * 2"   # Tuesday   12:00 UTC — service_promo
+    - cron: "0 18 * * 3"   # Wednesday 18:00 UTC — quote
+    - cron: "0 9  * * 4"   # Thursday  09:00 UTC — tech_tip
+    - cron: "0 15 * * 5"   # Friday    15:00 UTC — data_viz
+    - cron: "0 11 * * 6"   # Saturday  11:00 UTC — quote
 
-  # Allow manual runs from the Actions tab — always posts the first story
+  # Manual trigger — always posts the first story in content.json
   workflow_dispatch:
 
 jobs:
@@ -18,7 +18,7 @@ jobs:
     timeout-minutes: 10
 
     steps:
-      - name: Checkout repository
+      - name: Checkout
         uses: actions/checkout@v4
 
       - name: Set up Python
@@ -32,8 +32,8 @@ jobs:
 
       - name: Post Instagram Story
         env:
-          ACCESS_TOKEN: ${{ secrets.ACCESS_TOKEN }}
-          USER_ID: ${{ secrets.USER_ID }}
+          ACCESS_TOKEN:  ${{ secrets.ACCESS_TOKEN }}
+          USER_ID:       ${{ secrets.USER_ID }}
           IMGBB_API_KEY: ${{ secrets.IMGBB_API_KEY }}
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then

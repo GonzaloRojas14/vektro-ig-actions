@@ -1,22 +1,60 @@
 [
   {
+    "day": "monday",
     "time": "09:00",
-    "background_color": "#1a1a2e",
-    "text": "Good morning. ☀️\nStart the day with intention."
+    "type": "tech_tip",
+    "text": "Azure Blob Storage vs Data Lake Gen2",
+    "code": "# Connect to Azure Blob Storage\nfrom azure.storage.blob import (\n    BlobServiceClient\n)\nclient = BlobServiceClient\\\n    .from_connection_string(conn_str)\ncontainer = client\\\n    .get_container_client('raw-data')",
+    "subtext": "Use Blob for unstructured files. Choose Data Lake Gen2 when you need hierarchical namespaces and fine-grained ACLs for analytics workloads.",
+    "hashtags": ["Azure", "CloudArchitecture", "DataEngineering", "VektroIT"]
   },
   {
-    "time": "13:00",
-    "background_color": "#16213e",
-    "text": "Midday check-in.\nStay focused, keep moving."
+    "day": "tuesday",
+    "time": "12:00",
+    "type": "service_promo",
+    "text": "We Build What You Scale",
+    "subtext": "Cloud infrastructure, data pipelines & software that grows with your business.",
+    "hashtags": ["VektroIT", "CloudConsulting", "DataEngineering", "Argentina"]
   },
   {
+    "day": "wednesday",
     "time": "18:00",
-    "background_color": "#0f3460",
-    "text": "Evening drop.\nNew arrivals just landed."
+    "type": "quote",
+    "text": "Data is the new oil — but only if you know how to refine it.",
+    "subtext": "— Clive Humby",
+    "hashtags": ["DataEngineering", "BigData", "VektroIT"]
   },
   {
-    "time": "21:00",
-    "image_file": "stories/assets/night_bg.jpg",
-    "text": "End the night right.\nShop the collection."
+    "day": "thursday",
+    "time": "09:00",
+    "type": "tech_tip",
+    "text": "PySpark: Avoid These Common Mistakes",
+    "code": "# Bad: collect() on large datasets\ndf.collect()  # OOM risk!\n\n# Good: use show() or write\ndf.show(20, truncate=False)\ndf.write.parquet('s3://bucket/out')",
+    "subtext": "Never call collect() on large DataFrames. Use write.parquet() or write.delta() to persist results efficiently.",
+    "hashtags": ["PySpark", "BigData", "DataEngineering", "VektroIT"]
+  },
+  {
+    "day": "friday",
+    "time": "15:00",
+    "type": "data_viz",
+    "text": "Cloud Adoption in LATAM Tech 2025",
+    "subtext": "% of enterprises using each platform",
+    "source": "Vektro IT Research",
+    "data": [
+      { "label": "Azure",  "value": 78 },
+      { "label": "AWS",    "value": 65 },
+      { "label": "GCP",    "value": 42 },
+      { "label": "Hybrid", "value": 55 },
+      { "label": "On-Prem","value": 28 }
+    ],
+    "hashtags": ["CloudAdoption", "LATAM", "DataEngineering", "VektroIT"]
+  },
+  {
+    "day": "saturday",
+    "time": "11:00",
+    "type": "quote",
+    "text": "The goal is to turn data into information, and information into insight.",
+    "subtext": "— Carly Fiorina",
+    "hashtags": ["DataStrategy", "BI", "Analytics", "VektroIT"]
   }
 ]
