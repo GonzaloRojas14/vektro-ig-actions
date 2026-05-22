@@ -167,11 +167,24 @@ def publish(cid: str, user_id: str, token: str) -> str:
 
 # ── Main ──────────────────────────────────────────────────────────────────────
 
-def main() -> None:
+def _parse_args() -> tuple[bool, str, str]:
+    """Return (force, target_day, target_time) from sys.argv."""
     force = "--force" in sys.argv
+    day, time_ = "", ""
+    args = sys.argv[1:]
+    for i, arg in enumerate(args):
+        if arg == "--day"  and i + 1 < len(args):
+            day   = args[i + 1].lower()
+        if arg == "--time" and i + 1 < len(args):
+            time_ = args[i + 1]
+    return force, day, time_
 
-    token    = os.environ.get("ACCESS_TOKEN",  "").strip()
-    user_id  = os.environ.get("USER_ID",       "").strip()
+
+def main() -> None:
+    force, target_day, target_time = _parse_args()
+
+    token     = os.environ.get("ACCESS_TOKEN",  "").strip()
+    user_id   = os.environ.get("USER_ID",       "").strip()
     imgbb_key = os.environ.get("IMGBB_API_KEY", "").strip()
 
     missing = [k for k, v in {
@@ -189,7 +202,20 @@ def main() -> None:
 
     if force:
         story = stories[0]
-        log.info("--force: posting first entry (day=%s, time=%s, type=%s)",
+        log.info("--force: posting first entry (day=%s time=%s type=%s)",
+                 story.get("day"), story.get("time"), story.get("type"))
+    elif target_day and target_time:
+        # Workflow passes exact day+time so clock drift doesn't matter
+        story = next(
+            (s for s in stories
+             if s.get("day", "").lower() == target_day
+             and s.get("time", "")[:5] == target_time[:5]),
+            None,
+        )
+        if story is None:
+            log.error("No entry found for day=%s time=%s in content.json", target_day, target_time)
+            sys.exit(1)
+        log.info("Pinned story: day=%s time=%s type=%s",
                  story.get("day"), story.get("time"), story.get("type"))
     else:
         story = find_story(stories, now)

@@ -39,5 +39,14 @@ jobs:
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             python poster.py --force
           else
-            python poster.py
+            # Pass the exact day+time so clock drift never causes a miss
+            case "${{ github.event.schedule }}" in
+              "0 9 * * 1")  python poster.py --day monday    --time 09:00 ;;
+              "0 12 * * 2") python poster.py --day tuesday   --time 12:00 ;;
+              "0 18 * * 3") python poster.py --day wednesday --time 18:00 ;;
+              "0 9 * * 4")  python poster.py --day thursday  --time 09:00 ;;
+              "0 15 * * 5") python poster.py --day friday    --time 15:00 ;;
+              "0 11 * * 6") python poster.py --day saturday  --time 11:00 ;;
+              *)            python poster.py ;;
+            esac
           fi
