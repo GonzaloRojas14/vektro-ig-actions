@@ -10,7 +10,7 @@ from generator.utils import (
     W, H, BG, VIOLET, CYAN, WHITE, MUTED,
     load_font, text_width, line_height, wrap_text,
     draw_logo, draw_accent_line, draw_hashtags,
-    draw_centered_text, save_image,
+    draw_centered_text, save_image, load_background,
 )
 
 _PAD = 80
@@ -28,9 +28,12 @@ def _draw_gradient(draw: ImageDraw.ImageDraw) -> None:
 
 
 def render(entry: dict) -> Path:
-    img = Image.new("RGB", (W, H), BG)
+    img = load_background()
+    if img is None:
+        img = Image.new("RGB", (W, H), BG)
+        draw = ImageDraw.Draw(img)
+        _draw_gradient(draw)
     draw = ImageDraw.Draw(img)
-    _draw_gradient(draw)
 
     # ── Logo ──────────────────────────────────────────────────────────────────
     draw_logo(draw, x=_PAD, y=68)

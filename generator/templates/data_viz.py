@@ -9,7 +9,7 @@ from PIL import Image, ImageDraw
 from generator.utils import (
     W, H, BG, VIOLET, CYAN, WHITE, MUTED, CARD,
     load_font, text_width, line_height, wrap_text,
-    draw_logo, draw_accent_line, draw_hashtags, save_image,
+    draw_logo, draw_accent_line, draw_hashtags, save_image, load_background,
 )
 
 # Chart geometry (pixels)
@@ -47,7 +47,7 @@ def _draw_gridlines(draw: ImageDraw.ImageDraw, max_val: float, ticks: int = 5) -
 
 
 def render(entry: dict) -> Path:
-    img = Image.new("RGB", (W, H), BG)
+    img = load_background() or Image.new("RGB", (W, H), BG)
     draw = ImageDraw.Draw(img)
 
     # ── Subtle background card for chart area ─────────────────────────────────

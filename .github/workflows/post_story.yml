@@ -9,6 +9,14 @@ on:
     - cron: "0 15 * * 5"   # Friday    15:00 UTC — data_viz
     - cron: "0 11 * * 6"   # Saturday  11:00 UTC — quote
 
+  # Auto-post when a new background photo is pushed
+  push:
+    branches: [main]
+    paths:
+      - "backgrounds/*.jpg"
+      - "backgrounds/*.jpeg"
+      - "backgrounds/*.png"
+
   # Manual trigger — always posts the first story in content.json
   workflow_dispatch:
 
@@ -36,7 +44,7 @@ jobs:
           USER_ID:       ${{ secrets.USER_ID }}
           IMGBB_API_KEY: ${{ secrets.IMGBB_API_KEY }}
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] || [ "${{ github.event_name }}" = "push" ]; then
             python poster.py --force
           else
             # Pass the exact day+time so clock drift never causes a miss

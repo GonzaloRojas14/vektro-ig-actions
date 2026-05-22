@@ -10,7 +10,7 @@ from generator.utils import (
     W, H, BG, VIOLET, CYAN, WHITE, MUTED, CARD,
     load_font, text_width, line_height, wrap_text,
     draw_logo, draw_accent_line, draw_hashtags, draw_badge,
-    draw_centered_text, save_image,
+    draw_centered_text, save_image, load_background,
 )
 
 _PAD = 70          # horizontal padding
@@ -20,16 +20,15 @@ _MAX_CODE_LINES = 10
 
 
 def render(entry: dict) -> Path:
-    img = Image.new("RGB", (W, H), BG)
-    draw = ImageDraw.Draw(img)
-
-    # ── Decorative corner dots ────────────────────────────────────────────────
-    dot_layer = Image.new("RGBA", (W, H), (0, 0, 0, 0))
-    dd = ImageDraw.Draw(dot_layer)
-    for gx in range(0, W, 80):
-        for gy in range(0, H, 80):
-            dd.ellipse([gx - 1, gy - 1, gx + 1, gy + 1], fill=(*VIOLET, 18))
-    img = Image.alpha_composite(img.convert("RGBA"), dot_layer).convert("RGB")
+    img = load_background()
+    if img is None:
+        img = Image.new("RGB", (W, H), BG)
+        dot_layer = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+        dd = ImageDraw.Draw(dot_layer)
+        for gx in range(0, W, 80):
+            for gy in range(0, H, 80):
+                dd.ellipse([gx - 1, gy - 1, gx + 1, gy + 1], fill=(*VIOLET, 18))
+        img = Image.alpha_composite(img.convert("RGBA"), dot_layer).convert("RGB")
     draw = ImageDraw.Draw(img)
 
     # ── Logo ──────────────────────────────────────────────────────────────────

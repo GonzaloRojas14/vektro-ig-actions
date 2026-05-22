@@ -1,5 +1,6 @@
 """Shared constants, font loading, and drawing primitives for all templates."""
 
+import random
 from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont
 
@@ -14,6 +15,36 @@ MUTED    = (139, 139, 158)   # #8B8B9E
 CARD     = (18,  18,  28)    # code/card box background
 
 OUTPUT_PATH = Path("/tmp/ig_story_output.jpg")
+
+BACKGROUNDS_DIR = Path(__file__).parent.parent / "backgrounds"
+
+
+def load_background(overlay_alpha: int = 155) -> Image.Image | None:
+    """Return a randomly chosen photo from backgrounds/, resized to story dimensions with a
+    dark overlay applied. Returns None if the folder is empty, so templates can fall back
+    to their programmatic backgrounds."""
+    if not BACKGROUNDS_DIR.is_dir():
+        return None
+    photos = [
+        p for ext in ("*.jpg", "*.jpeg", "*.png")
+        for p in BACKGROUNDS_DIR.glob(ext)
+    ]
+    if not photos:
+        return None
+    src = Image.open(random.choice(photos)).convert("RGB")
+    # Cover-crop to 1080×1920
+    src_ratio = src.width / src.height
+    target_ratio = W / H
+    if src_ratio > target_ratio:
+        new_h, new_w = H, int(H * src_ratio)
+    else:
+        new_w, new_h = W, int(W / src_ratio)
+    src = src.resize((new_w, new_h), Image.LANCZOS)
+    left, top = (new_w - W) // 2, (new_h - H) // 2
+    src = src.crop((left, top, left + W, top + H))
+    # Dark overlay so text stays readable
+    overlay = Image.new("RGBA", (W, H), (0, 0, 0, overlay_alpha))
+    return Image.alpha_composite(src.convert("RGBA"), overlay).convert("RGB")
 
 # ── Font loading ──────────────────────────────────────────────────────────────
 
