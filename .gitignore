@@ -1,0 +1,20 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+env/
+
+# Generated / test images (root-level only — backgrounds/ stays tracked)
+/*.jpg
+/*.jpeg
+/*.png
+
+# Secrets & env
+.env
+*.env
+secrets.json
+
+# macOS
+.DS_Store
