@@ -18,11 +18,11 @@ from generator.utils import (
 _PAD = 70
 
 _SERVICES = [
-    ("Azure Cloud",           "Infrastructure & migrations"),
-    ("PySpark & Big Data",    "Distributed data pipelines"),
-    ("SQL & Data Engineering","Warehouses, ETL, analytics"),
+    ("Azure & AWS Cloud",     "Infrastructure & migrations"),
+    ("AI & LLM Systems",      "Agents, RAG, fine-tuning"),
+    ("Data Engineering",      "Spark, Iceberg, dbt, Kafka"),
     ("Software Development",  "APIs, backends, automation"),
-    ("Cloud Architecture",    "Design, costs & scalability"),
+    ("FinOps & Architecture", "Cost optimization & scale"),
 ]
 
 

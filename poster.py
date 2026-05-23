@@ -46,12 +46,26 @@ def load_content() -> list[dict]:
     return data
 
 
+def _rotate(matches: list[dict], now: datetime) -> dict:
+    """Pick one entry from a list using ISO week number so content rotates weekly."""
+    week = now.isocalendar().week
+    chosen = matches[week % len(matches)]
+    log.info("Week %d → slot %d/%d", week, week % len(matches) + 1, len(matches))
+    return chosen
+
+
 def find_story(stories: list[dict], now: datetime) -> dict | None:
-    """Match by current UTC weekday name and hour (±30 min window)."""
+    """Match by current UTC weekday name and hour (±30 min window).
+
+    When multiple entries share the same day+time slot the one selected
+    rotates each week using the ISO week number, so content never repeats
+    back-to-back without exhausting the full pool first.
+    """
     current_day  = _DAYS[now.weekday()]
     current_hour = now.hour
     current_min  = now.minute
 
+    matches: list[dict] = []
     for story in stories:
         day = story.get("day", "").lower()
         if day != current_day:
@@ -62,12 +76,13 @@ def find_story(stories: list[dict], now: datetime) -> dict | None:
         except (ValueError, IndexError):
             log.warning("Invalid time format '%s' in content.json — skipping", t)
             continue
-        # How many minutes from now to the scheduled time
         delta = abs((current_hour * 60 + current_min) - (sh * 60 + sm))
         if delta <= 30:
-            return story
+            matches.append(story)
 
-    return None
+    if not matches:
+        return None
+    return _rotate(matches, now)
 
 
 # ── ImgBB ─────────────────────────────────────────────────────────────────────
@@ -205,18 +220,19 @@ def main() -> None:
         log.info("--force: posting first entry (day=%s time=%s type=%s)",
                  story.get("day"), story.get("time"), story.get("type"))
     elif target_day and target_time:
-        # Workflow passes exact day+time so clock drift doesn't matter
-        story = next(
-            (s for s in stories
-             if s.get("day", "").lower() == target_day
-             and s.get("time", "")[:5] == target_time[:5]),
-            None,
-        )
-        if story is None:
+        # Workflow passes exact day+time so clock drift doesn't matter.
+        # Multiple entries for the same slot rotate by ISO week number.
+        matches = [
+            s for s in stories
+            if s.get("day", "").lower() == target_day
+            and s.get("time", "")[:5] == target_time[:5]
+        ]
+        if not matches:
             log.error("No entry found for day=%s time=%s in content.json", target_day, target_time)
             sys.exit(1)
-        log.info("Pinned story: day=%s time=%s type=%s",
-                 story.get("day"), story.get("time"), story.get("type"))
+        story = _rotate(matches, now)
+        log.info("Pinned story (%d options): day=%s time=%s type=%s",
+                 len(matches), story.get("day"), story.get("time"), story.get("type"))
     else:
         story = find_story(stories, now)
         if story is None:

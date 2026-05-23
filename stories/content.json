@@ -3,58 +3,194 @@
     "day": "monday",
     "time": "09:00",
     "type": "tech_tip",
-    "text": "Azure Blob Storage vs Data Lake Gen2",
-    "code": "# Connect to Azure Blob Storage\nfrom azure.storage.blob import (\n    BlobServiceClient\n)\nclient = BlobServiceClient\\\n    .from_connection_string(conn_str)\ncontainer = client\\\n    .get_container_client('raw-data')",
-    "subtext": "Use Blob for unstructured files. Choose Data Lake Gen2 when you need hierarchical namespaces and fine-grained ACLs for analytics workloads.",
-    "hashtags": ["Azure", "CloudArchitecture", "DataEngineering", "VektroIT"]
+    "text": "Azure AI Foundry: Deploy LLMs in Minutes",
+    "code": "# Azure AI Foundry — unified AI hub 2026\nfrom azure.ai.inference import ChatCompletionsClient\nfrom azure.core.credentials import AzureKeyCredential\n\nclient = ChatCompletionsClient(\n    endpoint=AZURE_ENDPOINT,\n    credential=AzureKeyCredential(KEY))\n\nresp = client.complete(model='gpt-4o',\n    messages=[{'role':'user','content':q}])\nprint(resp.choices[0].message.content)",
+    "subtext": "Azure AI Foundry unifies model deployment, fine-tuning and monitoring in one hub. Ship production LLMs in hours, not weeks."
+  },
+  {
+    "day": "monday",
+    "time": "09:00",
+    "type": "tech_tip",
+    "text": "Apache Iceberg: Time Travel Queries",
+    "code": "# Iceberg: query data as of any past timestamp\nfrom pyspark.sql import SparkSession\n\nspark = SparkSession.builder.getOrCreate()\n\n# Read snapshot from last Monday\ndf = (spark.read\n    .option('as-of-timestamp',\n            '2026-05-16 00:00:00')\n    .table('catalog.db.sales'))\ndf.show(5)",
+    "subtext": "Iceberg is the 2026 de facto open table format. Time travel, schema evolution and multi-engine reads (Spark, Athena, BigQuery) out of the box."
+  },
+  {
+    "day": "monday",
+    "time": "09:00",
+    "type": "tech_tip",
+    "text": "FastAPI + Async: The 2026 AI API Pattern",
+    "code": "from fastapi import FastAPI\nfrom anthropic import AsyncAnthropic\n\napp, ai = FastAPI(), AsyncAnthropic()\n\n@app.post('/ask')\nasync def ask(q: str) -> dict:\n    r = await ai.messages.create(\n        model='claude-sonnet-4-6', max_tokens=256,\n        messages=[{'role':'user','content':q}])\n    return {'answer': r.content[0].text}",
+    "subtext": "Always use async LLM clients. Blocking a worker thread under load costs you concurrency. AsyncAnthropic and AsyncOpenAI are drop-in replacements."
   },
   {
     "day": "tuesday",
     "time": "12:00",
     "type": "service_promo",
     "text": "We Build What You Scale",
-    "subtext": "Cloud infrastructure, data pipelines & software that grows with your business.",
-    "hashtags": ["VektroIT", "CloudConsulting", "DataEngineering", "Argentina"]
+    "subtext": "Cloud infrastructure, AI pipelines and software that grows with your business."
+  },
+  {
+    "day": "tuesday",
+    "time": "12:00",
+    "type": "service_promo",
+    "text": "From Data to AI in Production",
+    "subtext": "We architect and deploy end-to-end AI systems — RAG, agents, pipelines — on Azure, AWS and GCP."
   },
   {
     "day": "wednesday",
     "time": "18:00",
     "type": "quote",
     "text": "Data is the new oil — but only if you know how to refine it.",
-    "subtext": "— Clive Humby",
-    "hashtags": ["DataEngineering", "BigData", "VektroIT"]
+    "subtext": "— Clive Humby"
+  },
+  {
+    "day": "wednesday",
+    "time": "18:00",
+    "type": "quote",
+    "text": "80% of enterprise apps shipped in 2026 embed at least one AI agent.",
+    "subtext": "— LangChain, State of Agent Engineering 2026"
+  },
+  {
+    "day": "wednesday",
+    "time": "18:00",
+    "type": "quote",
+    "text": "The most dangerous phrase in engineering is ‘we’ve always done it this way.’",
+    "subtext": "— Grace Hopper"
   },
   {
     "day": "thursday",
     "time": "09:00",
     "type": "tech_tip",
-    "text": "PySpark: Avoid These Common Mistakes",
-    "code": "# Bad: collect() on large datasets\ndf.collect()  # OOM risk!\n\n# Good: use show() or write\ndf.show(20, truncate=False)\ndf.write.parquet('s3://bucket/out')",
-    "subtext": "Never call collect() on large DataFrames. Use write.parquet() or write.delta() to persist results efficiently.",
-    "hashtags": ["PySpark", "BigData", "DataEngineering", "VektroIT"]
+    "text": "PySpark 2026: Ditch Raw Parquet for Delta",
+    "code": "# Raw Parquet: no ACID, no time travel\ndf.write.parquet('s3://bucket/raw/')\n\n# Delta Lake: ACID + schema evolution\n(df.write\n   .format('delta')\n   .option('mergeSchema', 'true')\n   .mode('overwrite')\n   .save('s3://bucket/delta/events'))",
+    "subtext": "Raw Parquet has zero ACID guarantees. Delta Lake and Iceberg give you time travel, schema evolution, and concurrent writes — for free."
+  },
+  {
+    "day": "thursday",
+    "time": "09:00",
+    "type": "tech_tip",
+    "text": "RAG on Postgres with pgvector",
+    "code": "# pgvector: vector search inside Postgres\nfrom openai import OpenAI\n\nclient = OpenAI()\n\ndef embed(text: str) -> list:\n    return client.embeddings.create(\n        input=text,\n        model='text-embedding-3-small'\n    ).data[0].embedding\n\n# SQL: ORDER BY embedding <=> vec LIMIT 5",
+    "subtext": "pgvector turns your existing Postgres into a vector store. No new infra, familiar SQL, full ACID. Production-ready RAG without extra dependencies."
+  },
+  {
+    "day": "thursday",
+    "time": "09:00",
+    "type": "tech_tip",
+    "text": "dbt in 2026: SQL with Engineering Discipline",
+    "code": "-- dbt: incremental model (only new rows)\n{{ config(materialized='incremental',\n          unique_key='event_id') }}\n\nSELECT event_id, user_id,\n    occurred_at::timestamp AS ts\nFROM {{ source('raw', 'events') }}\n{% if is_incremental() %}\nWHERE occurred_at > (\n    SELECT MAX(ts) FROM {{ this }})\n{% endif %}",
+    "subtext": "dbt brings version control, tests and lineage to SQL. Incremental models mean you only process new rows — critical at multi-TB scale."
   },
   {
     "day": "friday",
     "time": "15:00",
     "type": "data_viz",
-    "text": "Cloud Adoption in LATAM Tech 2025",
-    "subtext": "% of enterprises using each platform",
-    "source": "Vektro IT Research",
+    "text": "Cloud Market Share Q1 2026",
+    "subtext": "% of global cloud infrastructure spend",
+    "source": "Synergy Research Group, Q1 2026",
     "data": [
-      { "label": "Azure",  "value": 78 },
-      { "label": "AWS",    "value": 65 },
-      { "label": "GCP",    "value": 42 },
-      { "label": "Hybrid", "value": 55 },
-      { "label": "On-Prem","value": 28 }
-    ],
-    "hashtags": ["CloudAdoption", "LATAM", "DataEngineering", "VektroIT"]
+      {
+        "label": "AWS",
+        "value": 28
+      },
+      {
+        "label": "Azure",
+        "value": 21
+      },
+      {
+        "label": "GCP",
+        "value": 14
+      },
+      {
+        "label": "Alibaba",
+        "value": 4
+      },
+      {
+        "label": "Oracle",
+        "value": 3
+      }
+    ]
+  },
+  {
+    "day": "friday",
+    "time": "15:00",
+    "type": "data_viz",
+    "text": "AI Agents in Production by Sector",
+    "subtext": "% enterprises with agents deployed, 2026",
+    "source": "LangChain / index.dev Enterprise Survey 2026",
+    "data": [
+      {
+        "label": "Finance",
+        "value": 47
+      },
+      {
+        "label": "Tech",
+        "value": 41
+      },
+      {
+        "label": "Retail",
+        "value": 29
+      },
+      {
+        "label": "Healthcare",
+        "value": 18
+      },
+      {
+        "label": "Govt",
+        "value": 14
+      }
+    ]
+  },
+  {
+    "day": "friday",
+    "time": "15:00",
+    "type": "data_viz",
+    "text": "Data Engineering Tools in Job Postings 2026",
+    "subtext": "% of data engineering roles requiring each tool",
+    "source": "dataexpert.io / refontelearning analysis 2026",
+    "data": [
+      {
+        "label": "Spark",
+        "value": 39
+      },
+      {
+        "label": "Airflow",
+        "value": 35
+      },
+      {
+        "label": "Kafka",
+        "value": 31
+      },
+      {
+        "label": "dbt",
+        "value": 27
+      },
+      {
+        "label": "Iceberg",
+        "value": 18
+      }
+    ]
   },
   {
     "day": "saturday",
     "time": "11:00",
     "type": "quote",
     "text": "The goal is to turn data into information, and information into insight.",
-    "subtext": "— Carly Fiorina",
-    "hashtags": ["DataStrategy", "BI", "Analytics", "VektroIT"]
+    "subtext": "— Carly Fiorina"
+  },
+  {
+    "day": "saturday",
+    "time": "11:00",
+    "type": "quote",
+    "text": "AI inference now consumes more compute than model training — for the first time ever.",
+    "subtext": "— Gartner, 2026"
+  },
+  {
+    "day": "saturday",
+    "time": "11:00",
+    "type": "quote",
+    "text": "Make it work, make it right, make it fast — in that order.",
+    "subtext": "— Kent Beck"
   }
 ]
